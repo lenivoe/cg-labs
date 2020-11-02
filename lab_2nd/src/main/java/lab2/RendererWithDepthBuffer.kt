@@ -119,6 +119,7 @@ class RendererWithDepthBuffer(private val mainPlot: Canvas, private val depthPlo
 
     private fun processHalf(left: Segment, right: Segment, plainFactors: DoubleArray, rgba: Int) {
         val (a, b, c, d) = plainFactors
+        val zShift = -a / c
 
         val leftXFunc = getYtoXFunc(left.first, left.second, colorBuf.cols-1)
         val rightXFunc = getYtoXFunc(right.first, right.second, colorBuf.cols-1)
@@ -129,9 +130,8 @@ class RendererWithDepthBuffer(private val mainPlot: Canvas, private val depthPlo
         for (y in startY until endY) {
             val leftX = leftXFunc(y)
             val rightX = rightXFunc(y)
-            val zShift = -a / c
             var z = -(leftX * a + b*y + d) / c
-            for (x in leftX..rightX) {
+            for (x in leftX until rightX) {
                 if (depthBuf[x, y] < z) {
                     depthBuf[x, y] = z
                     colorBuf[x, y] = rgba
@@ -143,19 +143,19 @@ class RendererWithDepthBuffer(private val mainPlot: Canvas, private val depthPlo
 }
 
 private fun getYtoXFunc(start: Vertex, end: Vertex, maxValue: Int): (Int) -> Int {
-    val topX = start.x.toInt()
-    val topY = start.y.toInt()
-    val botX = end.x.toInt()
-    val botY = end.y.toInt()
+    val startX = start.x.toInt()
+    val startY = start.y.toInt()
+    val endX = end.x.toInt()
+    val endY = end.y.toInt()
 
-    return getLinearFunc(topY, topX, botY, botX).let { xFunc ->
+    return getLinearFunc(startY, startX, endY, endX).let { xFunc ->
         { y -> xFunc(y).coerceIn(0, maxValue) }
     }
 }
 
-private fun getLinearFunc(ax: Int, ay: Int, bx: Int, by: Int): (Int) -> Int {
+private fun getLinearFunc(x1: Int, y1: Int, x2: Int, y2: Int): (Int) -> Int {
     return {
-        x -> by + (x - ax) * (by - ay) / (bx - ax)
+        x -> y1 + (x - x1) * (y2 - y1) / (x2 - x1)
     }
 }
 
