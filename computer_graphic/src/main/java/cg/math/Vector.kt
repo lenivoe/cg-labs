@@ -25,7 +25,7 @@ class ListVector<T>(private val list: List<T>): AbstractMatrix<T>(), Vector<T> {
         get() = 1
 
     override fun get(x: Int, y: Int): T {
-        assert(y == 1) { "vector has only one row" }
+        assert(y == 0) { "vector has only one row: y == $y" }
         return list[x]
     }
 
@@ -62,6 +62,9 @@ fun <T> MutableList<T>.toMutableVector(): MutableVector<T> = MutableListVector(t
 fun <T> createMutableVector(size: Int, init: (Int) -> T): MutableVector<T> =
         MutableList(size, init).toMutableVector()
 
+fun <T> Vector<T>.subVector(from: Int, to: Int): Vector<T> =
+        this.toList().subList(from, to).toVector()
+
 
 operator fun <M: Number, N: Number> Vector<M>.plus(other: Matrix<N>): Vector<Double> {
     return ((this as Matrix<M>) + other).toList().toVector()
@@ -96,6 +99,9 @@ infix fun <M: Number, N: Number> Vector<M>.x(other: Matrix<N>): Vector<Double> {
 }
 
 infix fun <M: Number, N: Number> Vector<M>.cross(other: Vector<N>): Vector<Double> {
+    assert(this.size >= 3 && other.size >= 3) {
+        "minimum size == 3: [${this.size}] cross [${other.size}]"
+    }
     val (a1, a2, a3) = this.toList().map { it.toDouble() }
     val (b1, b2, b3) = other.toList().map { it.toDouble() }
     return listOf(a2*b3 - a3*b2, -a1*b3 + a3*b1, a1*b2 - a2*b1).toVector()

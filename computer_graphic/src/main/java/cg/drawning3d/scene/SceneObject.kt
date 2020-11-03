@@ -17,7 +17,13 @@ class SceneObject(private val mesh: Mesh): ISceneObject {
         }
     }
 
-    private var modelMat = identityMat()
+    var modelMat = identityMat()
+        set(mat) {
+            assert(mat.rows == 4 && mat.cols == 4) {
+                "model matrix must be [4 x 4], this matrix [${mat.rows} x ${mat.cols}]"
+            }
+            field = mat
+        }
 
 
     override fun saveState(): ISceneObject.IState = State(modelMat)

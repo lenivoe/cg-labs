@@ -19,7 +19,9 @@ operator fun <M: Number, N: Number> Matrix<M>.minus(other: Matrix<N>): Matrix<Do
 }
 
 operator fun <M: Number, N: Number> Matrix<M>.times(other: Matrix<N>): Matrix<Double> {
-    assert(rows == other.rows && cols == other.cols) { "Matrices not match" }
+    assert(rows == other.rows && cols == other.cols) {
+        "Matrices not match ([rows x cols]): [$rows x $cols] * [${other.rows} x ${other.cols}]"
+    }
 
     return mapIndexed { x, y, value -> value.toDouble() * other[x, y].toDouble() }
 }

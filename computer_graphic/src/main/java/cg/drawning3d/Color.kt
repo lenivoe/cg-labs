@@ -10,7 +10,7 @@ enum class Colors(val color: Color) {
     BLUE(Color(0.0, 0.0, 1.0, 1.0)),
 }
 
-data class Color(val r: Double, val g: Double, val b: Double, val a: Double) {
+data class Color(val r: Double, val g: Double, val b: Double, val a: Double = 1.0) {
     fun toInt(): Int {
         val r = toByte(r) shl 24
         val g = toByte(g) shl 16
