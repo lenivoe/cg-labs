@@ -76,61 +76,53 @@ class RendererWithDepthBuffer(private val mainPlot: Canvas, private val depthPlo
     override fun acceptRenderedGraphics() {
         mainPlot.drawFromBuffer(colorBuf, ::toColor)
 
-        // Чтобы были заметнее различия между фоном и наименьшей глубиной,
-        // при нормализации глубины между ними вводится зазор dif = 0.2.
-        // Фоновая глубина = 0, наименьшая нефоновая глубина = 0.2, наибольшая глубина = 1.
-        val dif = 0.2
-        val min = depthBuf.toList().minOf { it }
-        val max = depthBuf.toList().maxOf { it }
-        val scale = (1 - dif) / (max - min)
-
+        val zLength = 1.2 * max(depthBuf.cols, depthBuf.rows)
         depthPlot.drawFromBuffer(depthBuf) { depth ->
-            val gray = if (depth == Double.NEGATIVE_INFINITY) {
-                0.0
-            } else {
-                dif + (depth - min) * scale
-            }
-            Color(gray, 1.0, gray, 1.0)
+            val c = ((zLength + depth) / zLength).coerceIn(0.0, 1.0)
+            Color(c, 0.8, c)
         }
     }
 
     private fun processTriangle(v1: Vertex, v2: Vertex, v3: Vertex, rgbaColor: Int) {
-        val normal = (v2 - v1) cross (v3 - v1)
-        if (abs(normal.z) < almostZero) {
+        val vertList = listOf(v1, v2, v3).sortedBy { it.y } // сверху вниз
+
+        val (top, _, bot) = vertList
+        if (abs(top.y - bot.y) < almostZero) {
             return
         }
 
-        val (a, b, c) = normal.toList()
-        val d = (normal * v1).let { -(it.x + it.y + it.z) }
-        val plainFactors = doubleArrayOf(a, b, c, d)
+        // разделить более длинное ребро горизонтальной линией,
+        // проходящей через вторую по вертикали вершину
+        var left = splitSegment(top, bot, vertList[1].y)
+        var right = vertList[1]
+        if (left.x > right.x) {
+            left = right.also { right = left } // swap
+        }
 
-        val vertList = listOf(v1, v2, v3).sortedBy { it.y } // сверху вниз
+        val plainFactors = calcPlainFactors(v1, v2, v3)
 
-        // верхняя половина треугольника
-        val top = vertList.first()
-        val (leftBot, rightBot) = vertList.subList(1, 3).sortedBy { it.x }
-        processHalf(Segment(top, leftBot), Segment(top, rightBot), plainFactors, rgbaColor)
-
-        // нижняя половина треугольника
-        val bot = vertList.last()
-        val (leftTop, rightTop) = vertList.subList(0, 2).sortedBy { it.x }
-        processHalf(Segment(leftTop, bot), Segment(rightTop, bot), plainFactors, rgbaColor)
+        processHalf(Segment(top, left), Segment(top, right), plainFactors, rgbaColor)
+        processHalf(Segment(left, bot), Segment(right, bot), plainFactors, rgbaColor)
     }
 
     private fun processHalf(left: Segment, right: Segment, plainFactors: DoubleArray, rgba: Int) {
+        if (abs(left.first.y - left.second.y) < almostZero) {
+            return
+        }
+
         val (a, b, c, d) = plainFactors
         val zShift = -a / c
 
         val leftXFunc = getYtoXFunc(left.first, left.second, colorBuf.cols-1)
         val rightXFunc = getYtoXFunc(right.first, right.second, colorBuf.cols-1)
 
-        val startY = max(left.first.y, right.first.y).toInt().coerceIn(0, colorBuf.rows-1)
-        val endY = min(left.second.y, right.second.y).toInt().coerceIn(0, colorBuf.rows-1)
+        val startY = floor(left.first.y).toInt().coerceIn(0, colorBuf.rows-1)
+        val endY = ceil(left.second.y).toInt().coerceIn(0, colorBuf.rows-1)
 
         for (y in startY until endY) {
             val leftX = leftXFunc(y)
             val rightX = rightXFunc(y)
-            var z = -(leftX * a + b*y + d) / c
+            var z = -(a * leftX + b * y + d) / c
             for (x in leftX until rightX) {
                 if (depthBuf[x, y] < z) {
                     depthBuf[x, y] = z
@@ -142,21 +134,33 @@ class RendererWithDepthBuffer(private val mainPlot: Canvas, private val depthPlo
     }
 }
 
-private fun getYtoXFunc(start: Vertex, end: Vertex, maxValue: Int): (Int) -> Int {
-    val startX = start.x.toInt()
-    val startY = start.y.toInt()
-    val endX = end.x.toInt()
-    val endY = end.y.toInt()
+private fun calcPlainFactors(v1: Vertex, v2: Vertex, v3: Vertex): DoubleArray {
+    val normal = (v2 - v1) cross (v3 - v1)
+    val (a, b, c) = normal.toList()
+    val d = (normal * v1.subVector(0, 3)).let { -(it.x + it.y + it.z) }
+    return doubleArrayOf(a, b, c, d)
+}
 
-    return getLinearFunc(startY, startX, endY, endX).let { xFunc ->
-        { y -> xFunc(y).coerceIn(0, maxValue) }
+private fun splitSegment(start: Vertex, end: Vertex, y: Double): Vertex {
+    val xFunc = getLinearFunc(start.y, start.x, end.y, end.x)
+    val zFunc = getLinearFunc(start.y, start.z, end.y, end.z)
+    return listOf(xFunc(y), y, zFunc(y), 1.0).toVector()
+}
+
+private fun getYtoXFunc(start: Vertex, end: Vertex, maxValue: Int): (Int) -> Int {
+    val bound = if (start.y < end.y) start.y..end.y else end.y..start.y
+    return getLinearFunc(start.y, start.x, end.y, end.x).let { xFunc ->
+        { y ->
+            val arg = y.toDouble().coerceIn(bound)
+            xFunc(arg).toInt().coerceIn(0, maxValue)
+        }
     }
 }
 
-private fun getLinearFunc(x1: Int, y1: Int, x2: Int, y2: Int): (Int) -> Int {
-    return {
-        x -> y1 + (x - x1) * (y2 - y1) / (x2 - x1)
-    }
+
+private fun getLinearFunc(x1: Double, y1: Double, x2: Double, y2: Double): (Double) -> Double {
+    assert(abs(x2 - x1) >= almostZero) { "dividing by zero: ($x1, $y1) -> ($x2, $y2)" }
+    return { x -> y1 + (x - x1) * (y2 - y1) / (x2 - x1) }
 }
 
 private fun <T> Canvas.drawFromBuffer(buffer: Matrix<T>, valueToColor: (T) -> Color) {
