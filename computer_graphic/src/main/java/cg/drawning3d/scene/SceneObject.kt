@@ -8,7 +8,7 @@ import cg.matrix.*
 import cg.mesh.Mesh
 
 
-class SceneObject(private val mesh: Mesh): ISceneObject {
+class SceneObject(val mesh: Mesh): ISceneObject {
     private inner class State(modelMat: Matrix<Double>) : ISceneObject.IState {
         val oldModelMat = createMatrix(4, 4, modelMat.toList())
 

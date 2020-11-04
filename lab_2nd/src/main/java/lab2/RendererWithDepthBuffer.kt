@@ -76,7 +76,7 @@ class RendererWithDepthBuffer(private val mainPlot: Canvas, private val depthPlo
     override fun acceptRenderedGraphics() {
         mainPlot.drawFromBuffer(colorBuf, ::toColor)
 
-        val zLength = 1.2 * max(depthBuf.cols, depthBuf.rows)
+        val zLength = max(depthBuf.cols, depthBuf.rows)
         depthPlot.drawFromBuffer(depthBuf) { depth ->
             val c = ((zLength + depth) / zLength).coerceIn(0.0, 1.0)
             Color(c, 0.8, c)
