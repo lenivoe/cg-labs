@@ -9,7 +9,7 @@
 
     <properties>
         <java.version>11</java.version>
-        <kotlin.version>1.4.10</kotlin.version>
+        <kotlin.version>[1.6.0,)</kotlin.version>
 
         <maven.test.skip>true</maven.test.skip>
 
